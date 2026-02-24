@@ -1,10 +1,10 @@
 ---
-description: 小丑牌（Balatro 风格）微信小游戏项目约定与当前实现说明，供后续 AI 接手开发
+description: 附魔牌（Enchant Card）微信小游戏项目约定与当前实现说明，供后续 AI 接手开发
 globs: js/**/*.js, game.js
 alwaysApply: true
 ---
 
-# 小丑牌项目规则与当前效果说明
+# 附魔牌项目规则与当前效果说明
 
 ## 项目类型与入口
 
@@ -28,7 +28,7 @@ alwaysApply: true
 ## 场景与状态
 
 - **场景**：`Main.scene` 为 `'start'` 或 `'battle'`
-- **开始界面**：深色渐变背景、标题「小丑牌」、副标题「Balatro」、居中「开始游戏」按钮；点击后 `scene = 'battle'`，生成洗好的牌并抽 10 张进 `battle.hand`，然后 `draw()` 重绘
+- **开始界面**：深色渐变背景、标题「附魔牌」、副标题「Enchant Card」、居中「开始游戏」按钮；点击后 `scene = 'battle'`，生成洗好的牌并抽 10 张进 `battle.hand`，然后 `draw()` 重绘
 - **对战状态**：`Main.battle` 含 `monsterName`、`monsterHp`、`monsterHpMax`、`chips`、`mult`、`hand`、`sortMode`、`selectedCardIndices`、`cardDisplayOffset`、`lastHandName`、`lastScore`（出牌后本次牌型名与分数）
 
 ## 扑克牌数据
@@ -56,7 +56,7 @@ alwaysApply: true
 
 - **弧线**：手牌中心沿圆弧排布，弧弦长为屏宽 60%（`chordWidth = w * 0.6`），半径 `arcRadius = 0.95 * w`；弧线本身不绘制
 - **手牌排布**：从弧的起点到终点**均匀**分布 n 张牌（角度 `theta_i = -arcAlpha + (i * 2 * arcAlpha) / (n - 1)`），每张牌的**中心点**在弧线上，旋转角为 `theta`（与弧切线一致）；遮挡自然产生，不单独控制
-- **牌尺寸**：固定。`cardH = handAreaH * 0.4`，`cardW = cardH * 0.71`；牌面点数/花色字体略大（rank 15px、suit 16px）
+- **牌尺寸**：固定。`cardH = handAreaH * 0.4`，`cardW = cardH * 0.71`；牌面点数/花色字体略大（rank 20px、suit 16px）
 - **牌面绘制**：`drawCardFanCentered` 以牌中心为支点旋转绘制；点数与花色在牌面左上角与右下角展示。手牌抽到后按当前 `sortMode` 排序；按点数时顺序为 A>K>Q>J>10>…>2（大在左）。排序按钮单个，点击切换 sortMode。手牌点击：切换选中状态，选中牌沿弧径向外偏移 10%（牌宽），最多 5 张；偏移量由 `cardDisplayOffset[i]` 与目标（选中=1、未选=0）每帧插值（speed 0.2）实现动画。Main 使用 `requestAnimationFrame` 循环，battle 场景下每帧调用 `updateBattleAnimation` 再 `draw`
 
 ## 样式约定

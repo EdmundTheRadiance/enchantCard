@@ -15,11 +15,11 @@ export function drawStartScreen(ctx, w, h, startButton) {
   ctx.font = 'bold 48px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('小丑牌', w / 2, h / 2 - 100);
+  ctx.fillText('附魔牌', w / 2, h / 2 - 100);
 
   ctx.fillStyle = COLOR.primaryTextDim;
   ctx.font = '20px sans-serif';
-  ctx.fillText('Balatro', w / 2, h / 2 - 58);
+  ctx.fillText('Enchant Card', w / 2, h / 2 - 58);
 
   const btn = startButton;
   const r = 12;

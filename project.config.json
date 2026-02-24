@@ -29,7 +29,7 @@
   "compileType": "game",
   "libVersion": "latest",
   "appid": "wx66f80e1f220e0038",
-  "projectname": "quickstart",
+  "projectname": "enchantCard",
   "condition": {
     "search": {
       "current": -1,
