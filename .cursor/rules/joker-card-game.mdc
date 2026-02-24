@@ -1,0 +1,78 @@
+---
+description: 小丑牌（Balatro 风格）微信小游戏项目约定与当前实现说明，供后续 AI 接手开发
+globs: js/**/*.js, game.js
+alwaysApply: true
+---
+
+# 小丑牌项目规则与当前效果说明
+
+## 项目类型与入口
+
+- **平台**：微信小游戏（Canvas 2D 渲染）
+- **入口**：`game.js` 仅做 `import Main from './js/main'; new Main();`
+- **画布**：`js/render.js` 中 `wx.createCanvas()`，导出 `SCREEN_WIDTH`、`SCREEN_HEIGHT`；`ctx` 在 `js/main.js` 取得并传入各场景/区域绘制函数
+
+## 模块与文件结构
+
+- **`js/main.js`**：Main 类，状态（scene、startButton、battle）、layout/draw/触摸/onStartGame，不包含具体绘制实现
+- **`js/cards/constants.js`**：SUITS、RANKS
+- **`js/cards/deck.js`**：createShuffledDeck、drawHandFromDeck
+- **`js/constants/theme.js`**：COLOR（主文字、强调色、弧线、血量等）、BACKGROUND_GRADIENT（背景渐变配置），供各场景/区域统一改主题
+- **`js/utils/draw.js`**：drawGameBackground、roundRect、drawCard、drawCardFanCentered（以牌中心为支点），所有绘制方法首参为 ctx
+- **`js/areas/monsterArea.js`**：drawMonsterArea(ctx, w, h, monsterAreaH, battle)
+- **`js/areas/scoreArea.js`**：drawScoreArea(ctx, w, h, scoreAreaY, scoreAreaH, battle)
+- **`js/areas/handArea.js`**：drawHandArea(ctx, w, h, handAreaY, handAreaH, hand)
+- **`js/scenes/startScreen.js`**：drawStartScreen(ctx, w, h, startButton)、layoutStartButton(w, h)
+- **`js/scenes/battleScene.js`**：drawBattleBackground(ctx, w, h)、drawBattleScene(ctx, w, h, battle)，内部调用三个 areas
+
+## 场景与状态
+
+- **场景**：`Main.scene` 为 `'start'` 或 `'battle'`
+- **开始界面**：深色渐变背景、标题「小丑牌」、副标题「Balatro」、居中「开始游戏」按钮；点击后 `scene = 'battle'`，生成洗好的牌并抽 10 张进 `battle.hand`，然后 `draw()` 重绘
+- **对战状态**：`Main.battle` 含 `monsterName`、`monsterHp`、`monsterHpMax`、`chips`、`mult`、`hand`、`sortMode`、`selectedCardIndices`、`cardDisplayOffset`、`lastHandName`、`lastScore`（出牌后本次牌型名与分数）
+
+## 扑克牌数据
+
+- **花色**：黑桃 ♠、红桃 ♥、方片 ♦、梅花 ♣（用 `\u2660` 等 Unicode，避免引号/编码问题）
+- **点数**：`RANKS = ['A','2',...,'10','J','Q','K']`
+- **牌堆**：`createShuffledDeck()` 返回 52 张洗好的牌；`drawHandFromDeck(deck)` 从牌堆取前 10 张作为手牌
+
+## 对战界面布局（必须保持比例）
+
+- **竖向三块**（占屏高比例固定）：
+  - **怪物区**：0 ~ 50% 屏高。内容：怪物名、怪物形象占位（方形+边框）、血量条
+  - **计分区**：50% ~ 65% 屏高。内容：筹码、倍率，放在一个圆角矩形框内
+  - **手牌区**：65% ~ 100% 屏高。内容：沿弧排列的手牌 + 下方左侧排序按钮（按点数/按花色切换）、右侧出牌按钮；`getSortButtonRect`、`getPlayButtonRect` 供触摸判定，出牌点击由 Main 的 `onPlayCards()` 处理
+
+## 怪物区
+
+- 名字居中顶部；形象为方形占位（可后续替换为图片），尺寸在区内尽量大（约 70% 高、55% 屏宽取小）；血量条在形象下方，显示当前/最大血量，颜色按比例变化
+
+## 计分区
+
+- 一个深色圆角框（`roundRect`），内部分左右：左侧「筹码」+ 数值，右侧「倍率」+ 「×」+ 数值
+
+## 手牌区（核心逻辑，勿随意破坏）
+
+- **弧线**：手牌中心沿圆弧排布，弧弦长为屏宽 60%（`chordWidth = w * 0.6`），半径 `arcRadius = 0.95 * w`；弧线本身不绘制
+- **手牌排布**：从弧的起点到终点**均匀**分布 n 张牌（角度 `theta_i = -arcAlpha + (i * 2 * arcAlpha) / (n - 1)`），每张牌的**中心点**在弧线上，旋转角为 `theta`（与弧切线一致）；遮挡自然产生，不单独控制
+- **牌尺寸**：固定。`cardH = handAreaH * 0.4`，`cardW = cardH * 0.71`；牌面点数/花色字体略大（rank 15px、suit 16px）
+- **牌面绘制**：`drawCardFanCentered` 以牌中心为支点旋转绘制；点数与花色在牌面左上角与右下角展示。手牌抽到后按当前 `sortMode` 排序；按点数时顺序为 A>K>Q>J>10>…>2（大在左）。排序按钮单个，点击切换 sortMode。手牌点击：切换选中状态，选中牌沿弧径向外偏移 10%（牌宽），最多 5 张；偏移量由 `cardDisplayOffset[i]` 与目标（选中=1、未选=0）每帧插值（speed 0.2）实现动画。Main 使用 `requestAnimationFrame` 循环，battle 场景下每帧调用 `updateBattleAnimation` 再 `draw`
+
+## 样式约定
+
+- 背景：深紫/深蓝渐变（如 `#1a0a2e`、`#16213e`、`#0f0f23`）
+- 主文字/边框：`#e8d5b7`
+- 强调色/按钮：`#c9a227`
+- 弧线：`#e83e3e`
+- 圆角矩形用 `roundRect` 辅助方法（仅生成 path，不 fill/stroke）
+
+## 出牌与分数
+
+- **牌型**：见 `js/cards/handRank.js`。含德州扑克牌型及五条(120×12)、同花葫芦(140×14)、同花五条(160×16)。牌型从大到小：同花五条、同花葫芦、五条、皇家同花顺、同花顺、四条、葫芦、同花、顺子、三条、两对、一对、高牌。五条/同花五条需 5 张同点数（标准 52 张牌需王牌或后续扩展）。
+- **分数**：分数 = 筹码 × 倍率。出牌时用选中牌评估牌型，将 `battle.chips`、`battle.mult` 设为该牌型基础值，`battle.lastScore = chips * mult`，`battle.lastHandName` 用于计分区显示。
+
+## 扩展建议
+
+- 怪物图：将占位矩形改为 `drawImage` 加载资源
+- 游戏逻辑：出牌后扣怪物血、补牌、多轮等可基于现有 `battle` 状态扩展
