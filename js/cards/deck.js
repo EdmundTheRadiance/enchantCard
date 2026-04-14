@@ -11,7 +11,7 @@ export const PILE = {
 export const INITIAL_HAND_SIZE = 10;
 
 /** Fisher-Yates 洗牌（不修改原数组，返回新数组） */
-function shuffleArray(arr) {
+export function shuffleArray(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

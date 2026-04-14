@@ -10,8 +10,9 @@ const SELECTED_OFFSET_RATIO = 0.1;
  * 手牌区：手牌沿弧线排布，选中牌向外偏移 10%（使用动画进度）；下方一个排序按钮
  * @param {number[]} selectedIndices - 当前选中的牌下标
  * @param {number[]} cardDisplayOffset - 每张牌当前偏移进度 0~1，用于选中/取消动画
+ * @param {number} [discardsRemaining=5] - 本局剩余弃牌次数，0 时弃牌按钮灰显
  */
-export function drawHandArea(ctx, w, h, handAreaY, handAreaH, hand, sortMode, selectedIndices = [], cardDisplayOffset = []) {
+export function drawHandArea(ctx, w, h, handAreaY, handAreaH, hand, sortMode, selectedIndices = [], cardDisplayOffset = [], discardsRemaining = 5) {
   const handCenterY = handAreaY + handAreaH / 2;
   const n = hand.length;
 
@@ -51,13 +52,14 @@ export function drawHandArea(ctx, w, h, handAreaY, handAreaH, hand, sortMode, se
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  ctx.fillStyle = COLOR.discardButton;
+  const discardDisabled = discardsRemaining <= 0;
+  ctx.fillStyle = discardDisabled ? '#4a4a4a' : COLOR.discardButton;
   ctx.strokeStyle = COLOR.primaryText;
   roundRect(ctx, discardRect.x, discardRect.y, discardRect.width, discardRect.height, r);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = COLOR.primaryText;
-  ctx.fillText('弃牌', discardRect.x + discardRect.width / 2, discardRect.y + discardRect.height / 2);
+  ctx.fillStyle = discardDisabled ? '#888' : COLOR.primaryText;
+  ctx.fillText(discardsRemaining <= 0 ? '弃牌(0)' : `弃牌(${discardsRemaining})`, discardRect.x + discardRect.width / 2, discardRect.y + discardRect.height / 2);
 
   ctx.fillStyle = COLOR.accent;
   ctx.strokeStyle = COLOR.primaryText;

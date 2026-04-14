@@ -14,22 +14,25 @@ alwaysApply: true
 
 ## 模块与文件结构
 
-- **`js/main.js`**：Main 类，状态（scene、startButton、battle）、layout/draw/触摸/onStartGame，不包含具体绘制实现
+- **`js/main.js`**：Main 类，状态（scene、startButton、battle、shop）、layout/draw/触摸/各场景入口，不包含具体绘制实现
 - **`js/cards/constants.js`**：SUITS、RANKS
-- **`js/cards/deck.js`**：createShuffledDeck、drawHandFromDeck
+- **`js/cards/deck.js`**：createShuffledDeck、drawHandFromDeck、shuffleArray、drawToHandWithReshuffle、moveToDiscardPile、sortHand
 - **`js/constants/theme.js`**：COLOR（主文字、强调色、弧线、血量等）、BACKGROUND_GRADIENT（背景渐变配置），供各场景/区域统一改主题
 - **`js/utils/draw.js`**：drawGameBackground、roundRect、drawCard、drawCardFanCentered（以牌中心为支点），所有绘制方法首参为 ctx
 - **`js/areas/monsterArea.js`**：drawMonsterArea(ctx, w, h, monsterAreaH, battle)
 - **`js/areas/scoreArea.js`**：drawScoreArea(ctx, w, h, scoreAreaY, scoreAreaH, battle)
-- **`js/areas/handArea.js`**：drawHandArea(ctx, w, h, handAreaY, handAreaH, hand)
+- **`js/areas/handArea.js`**：drawHandArea(ctx, w, h, handAreaY, handAreaH, hand, sortMode, selectedIndices, cardDisplayOffset, discardsRemaining)；getSortButtonRect、getPlayButtonRect、getDiscardButtonRect、getCardPositions、hitTestCard
 - **`js/scenes/startScreen.js`**：drawStartScreen(ctx, w, h, startButton)、layoutStartButton(w, h)
-- **`js/scenes/battleScene.js`**：drawBattleBackground(ctx, w, h)、drawBattleScene(ctx, w, h, battle)，内部调用三个 areas
+- **`js/scenes/battleScene.js`**：drawBattleBackground、drawBattleScene(ctx, w, h, battle)，getRetryButtonRect
+- **`js/scenes/shopScene.js`**：drawShopScene(ctx, w, h, shop)，getEnchantButtonRect(w, h)，getShopOptionIndexAt(w, h, options, x, y)，getShopFunctionOptionIndexAt(w, h, functionOptions, x, y)
+- **`js/enchant/`**：附魔模块。`constants.js` 效果类型常量；`catalog.js` 功能区附魔选项目录（FUNCTION_ENCHANT_CATALOG：id、label、effect）；`index.js` 导出 getRandomCardTypeOptions(4)、getRandomFunctionOptions(4) 供商店使用
 
 ## 场景与状态
 
-- **场景**：`Main.scene` 为 `'start'` 或 `'battle'`
+- **场景**：`Main.scene` 为 `'start'`、`'battle'` 或 `'shop'`。**调试用**：当前默认 `scene = 'shop'`，一进游戏即商店；正式发布时改回 `scene = 'start'`，由开始界面点击「开始游戏」再进对战。
 - **开始界面**：深色渐变背景、标题「附魔牌」、副标题「Enchant Card」、居中「开始游戏」按钮；点击后 `scene = 'battle'`，生成洗好的牌并抽 10 张进 `battle.hand`，然后 `draw()` 重绘
-- **对战状态**：`Main.battle` 含 `monsterName`、`monsterHp`、`monsterHpMax`、`chips`、`mult`、`hand`、`sortMode`、`selectedCardIndices`、`cardDisplayOffset`、`lastHandName`、`lastScore`（出牌后本次牌型名与分数）
+- **对战状态**：`Main.battle` 含 `monsterName`、`monsterHp`、`monsterHpMax`、`chips`、`mult`、`hand`、`drawPile`、`discardPile`、`discardsRemaining`（本局剩余弃牌次数，每局最多 5 次）、`sortMode`、`selectedCardIndices`、`cardDisplayOffset`、`lastHandName`、`lastScore`、`attackAnim`、`failureAnim`、`failed`
+- **商店场景**：战胜怪物后进入。`Main.shop` 含 `options`（选牌区随机 4 个选项，来自 `js/enchant`）、`selectedOptionIndex`（选牌区选中 0~3）、`functionOptions`（功能区随机 4 个附魔效果，来自 `js/enchant/catalog`）、`selectedFunctionIndex`（功能区选中 0~3）
 
 ## 扑克牌数据
 
@@ -42,7 +45,31 @@ alwaysApply: true
 - **竖向三块**（占屏高比例固定）：
   - **怪物区**：0 ~ 50% 屏高。内容：怪物名、怪物形象占位（方形+边框）、血量条
   - **计分区**：50% ~ 65% 屏高。内容：筹码、倍率，放在一个圆角矩形框内
-  - **手牌区**：65% ~ 100% 屏高。内容：沿弧排列的手牌 + 下方左侧排序按钮（按点数/按花色切换）、右侧出牌按钮；`getSortButtonRect`、`getPlayButtonRect` 供触摸判定，出牌点击由 Main 的 `onPlayCards()` 处理
+  - **手牌区**：65% ~ 100% 屏高。内容：沿弧排列的手牌 + 下方左侧弃牌按钮（显示剩余次数「弃牌(n)」）、中间排序按钮（按点数/按花色切换）、右侧出牌按钮；`getDiscardButtonRect`、`getSortButtonRect`、`getPlayButtonRect` 供触摸判定，弃牌由 `onDiscardCards()`、出牌由 `onPlayCards()` 处理
+
+## 弃牌规则
+
+- **次数限制**：每局最多弃牌 5 次，`battle.discardsRemaining` 从 5 递减，为 0 时弃牌按钮灰显且点击无效；`resetBattle()` 时重置为 5
+
+## 战胜与商店进入
+
+- **战胜条件**：当出牌造成的分数（筹码×倍率）**大于等于**怪物当前剩余血量时，视为战胜怪物
+- **流程**：攻击动画结束后若 `monsterHp <= 0`，调用 `enterShop()`，将 `scene = 'shop'`，并初始化商店选牌区 4 个随机选项；若 `monsterHp > 0` 则进入失败流程（怪物反击→失败界面→再来一次）
+
+## 商店场景布局
+
+- **上下留白**：各占屏高 6%（`TOP_BOTTOM_MARGIN_RATIO`）
+- **选牌区**：屏高 40%，自顶部留白下缘起。标题文案为「请选择一种牌进行附魔」；4 个选项按 **2×2** 排列，选项文案分两行展示（上行「随机一张」，下行为点数或花色如 A、黑桃），字号约 18px，选项为按钮样式、与边框留空
+- **功能区**：紧接选牌区下方，占屏高 40%。标题「请选择一种附魔效果」；4 个选项来自 `js/enchant/catalog` 随机抽取，2×2 排列、按钮样式、与边框留空，长文案自动换行（约 10 字/行）；`getShopFunctionOptionIndexAt` 供触摸判定
+- **附魔按钮**：在功能区下方，占屏高 8% 区域，按钮在该区域内垂直与水平居中；`getEnchantButtonRect(w, h)` 供触摸判定
+
+## 商店选牌区选项规则
+
+- **选项池**：13 种点数（A、2～10、J、Q、K）+ 4 种花色（黑桃、红桃、梅花、方片），共 17 类
+- **生成**：进入商店时从 17 类中随机不重复抽取 4 个，作为本局选牌区的 4 个选项；每项为 `{ type: 'rank', rank, label }` 或 `{ type: 'suit', suitIndex, label }`，`label` 如「随机一张A」「随机一张黑桃」。4 个选项在选牌区内以 **2×2** 方式排列，与选牌区边框保留内边距（innerPadding）；选项为**按钮样式**：未选中为灰底+主色描边，选中为强调色底+深色文字+主色描边
+- **选择含义**：玩家从 4 个选项中选一个，表示**之后附魔将作用在该类牌上**（如选「随机一张A」即附魔目标为所有 A）；选中状态用 `shop.selectedOptionIndex`（0～3）表示，点击同一选项可取消选中
+- **触摸**：`getShopOptionIndexAt(w, h, options, x, y)` 返回选牌区选项下标；`getShopFunctionOptionIndexAt(w, h, functionOptions, x, y)` 返回功能区选项下标
+- **功能区选项**：`js/enchant/catalog.js` 的 FUNCTION_ENCHANT_CATALOG 列举所有附魔效果，每项含 id、label、effect、**tier**。进入商店时 `getRandomFunctionOptions(4)` 随机取 4 个；effect 为结构化描述，供后续出牌结算时应用。**附魔等级（tier）**：绿色（green）= 直接倍率/筹码或基于单牌/打出条件的加成（如筹码+5、倍率+1、若这张牌是某花色则+15筹码、若打出牌全红则+3倍率等）；蓝色（blue）= 花色/点数变化凑牌型；紫色（purple）= 条件触发高倍率/筹码；金色（gold）= 条件触发成长型。等级颜色见 `js/enchant/constants.js` 的 ENCHANT_TIER、ENCHANT_TIER_COLOR；商店功能区选项边框按 tier 着色
 
 ## 怪物区
 
@@ -76,3 +103,8 @@ alwaysApply: true
 
 - 怪物图：将占位矩形改为 `drawImage` 加载资源
 - 游戏逻辑：出牌后扣怪物血、补牌、多轮等可基于现有 `battle` 状态扩展
+- 商店附魔：`onEnchant()` 根据 `shop.selectedOptionIndex` 与 `shop.options[selectedOptionIndex]` 实现具体附魔效果（如将该类牌标记为已附魔），并决定离开商店后是否回到新一局对战
+
+## 规则维护
+
+- **涉及规则或流程的改动**（如新增场景、修改胜负条件、布局比例、弃牌/选牌/附魔规则等），在实现代码后应**同步更新本文件**（`.cursor/rules/enchant-card-game.mdc`），保证文档与当前行为一致，便于后续协作与 AI 接手。

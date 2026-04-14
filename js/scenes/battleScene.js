@@ -79,7 +79,7 @@ export function drawBattleScene(ctx, w, h, battle) {
 
   drawMonsterArea(ctx, w, h, monsterAreaH, battle);
   drawScoreArea(ctx, w, h, scoreAreaY, scoreAreaH, battle);
-  drawHandArea(ctx, w, h, handAreaY, handAreaH, battle.hand, battle.sortMode, battle.selectedCardIndices, battle.cardDisplayOffset);
+  drawHandArea(ctx, w, h, handAreaY, handAreaH, battle.hand, battle.sortMode, battle.selectedCardIndices, battle.cardDisplayOffset, battle.discardsRemaining);
 
   ctx.restore();
 

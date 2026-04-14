@@ -27,7 +27,7 @@
     "useCompilerPlugins": false
   },
   "compileType": "game",
-  "libVersion": "latest",
+  "libVersion": "3.14.1",
   "appid": "wx66f80e1f220e0038",
   "projectname": "enchantCard",
   "condition": {

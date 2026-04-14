@@ -11,6 +11,8 @@ import {
 import { evaluateHand } from './cards/handRank';
 import { getSortButtonRect, getPlayButtonRect, getDiscardButtonRect, getCardPositions, hitTestCard } from './areas/handArea';
 import { getRetryButtonRect } from './scenes/battleScene';
+import { drawShopScene, getEnchantButtonRect, getShopOptionIndexAt, getShopFunctionOptionIndexAt } from './scenes/shopScene';
+import { getRandomCardTypeOptions, getRandomFunctionOptions } from './enchant/index';
 
 const ctx = canvas.getContext('2d');
 
@@ -18,7 +20,8 @@ const ctx = canvas.getContext('2d');
  * 游戏主入口：开始界面 + 对战场景
  */
 export default class Main {
-  scene = 'start';
+  /** 当前场景：'start' | 'battle' | 'shop'。调试时暂设为 'shop' 直接进商店，正式改为 'start' */
+  scene = 'shop';
   startButton = { x: 0, y: 0, width: 240, height: 72 };
   battle = {
     monsterName: '小怪',
@@ -35,6 +38,8 @@ export default class Main {
     hand: [],
     /** 弃牌堆：已打出的牌 */
     discardPile: [],
+    /** 本局剩余弃牌次数（每局最多 5 次） */
+    discardsRemaining: 5,
     sortMode: 'rank',
     selectedCardIndices: [],
     cardDisplayOffset: [],
@@ -46,8 +51,21 @@ export default class Main {
     failed: false,
   };
 
+  /** 商店场景状态：选牌区、功能区、附魔按钮 */
+  shop = {
+    /** 选牌区随机 4 个选项（来自 js/enchant），表示附魔目标牌类型 */
+    options: [],
+    /** 选牌区选中的选项下标 0~3，-1 表示未选 */
+    selectedOptionIndex: -1,
+    /** 功能区随机 4 个附魔效果选项（来自 js/enchant/catalog） */
+    functionOptions: [],
+    /** 功能区选中的选项下标 0~3，-1 表示未选 */
+    selectedFunctionIndex: -1,
+  };
+
   constructor() {
     this.layout();
+    if (this.scene === 'shop') this.initShopOptions();
     this.draw();
     this.bindTouch();
     this.loop();
@@ -81,6 +99,8 @@ export default class Main {
         atk.active = false;
         if (this.battle.monsterHp > 0) {
           this.battle.failureAnim = { active: true, progress: 0 };
+        } else {
+          this.enterShop();
         }
       }
     }
@@ -105,6 +125,8 @@ export default class Main {
       drawStartScreen(ctx, w, h, this.startButton);
     } else if (this.scene === 'battle') {
       drawBattleScene(ctx, w, h, this.battle);
+    } else if (this.scene === 'shop') {
+      drawShopScene(ctx, w, h, this.shop);
     }
   }
 
@@ -118,6 +140,8 @@ export default class Main {
         this.onStartGame();
       } else if (this.scene === 'battle') {
         this.onBattleTouch(x, y);
+      } else if (this.scene === 'shop') {
+        this.onShopTouch(x, y);
       }
     };
     if (typeof canvas !== 'undefined' && typeof canvas.addEventListener === 'function') {
@@ -240,8 +264,9 @@ export default class Main {
     };
   }
 
-  /** 弃牌：将选中的手牌放入弃牌堆，并从抽牌堆抽取相同数量补回（不足时按抽一轮牌规则） */
+  /** 弃牌：将选中的手牌放入弃牌堆，并从抽牌堆抽取相同数量补回（不足时按抽一轮牌规则）；每局最多 5 次 */
   onDiscardCards() {
+    if (this.battle.discardsRemaining <= 0) return;
     const sel = this.battle.selectedCardIndices;
     if (sel.length === 0) return;
     const discardCount = sel.length;
@@ -250,8 +275,47 @@ export default class Main {
     drawToHandWithReshuffle(this.battle.drawPile, this.battle.discardPile, this.battle.hand, discardCount);
     sortHand(this.battle.hand, this.battle.sortMode);
     this.battle.cardDisplayOffset = this.battle.hand.map(() => 0);
+    this.battle.discardsRemaining -= 1;
     this.updateScoreFromSelection();
     this.logPiles();
+  }
+
+  /** 初始化商店选牌区与功能区各 4 个随机选项（来自 js/enchant），供进入商店或调试直进商店时调用 */
+  initShopOptions() {
+    this.shop.options = getRandomCardTypeOptions(4);
+    this.shop.selectedOptionIndex = -1;
+    this.shop.functionOptions = getRandomFunctionOptions(4);
+    this.shop.selectedFunctionIndex = -1;
+  }
+
+  /** 战胜怪物后进入商店场景（出牌点数 ≥ 怪物剩余血量时调用） */
+  enterShop() {
+    this.scene = 'shop';
+    this.initShopOptions();
+  }
+
+  onShopTouch(x, y) {
+    const w = SCREEN_WIDTH;
+    const h = SCREEN_HEIGHT;
+    const enchantRect = getEnchantButtonRect(w, h);
+    if (this.hitRect(x, y, enchantRect)) {
+      this.onEnchant();
+      return;
+    }
+    const optionIndex = getShopOptionIndexAt(w, h, this.shop.options, x, y);
+    if (optionIndex >= 0) {
+      this.shop.selectedOptionIndex = this.shop.selectedOptionIndex === optionIndex ? -1 : optionIndex;
+      return;
+    }
+    const funcIndex = getShopFunctionOptionIndexAt(w, h, this.shop.functionOptions, x, y);
+    if (funcIndex >= 0) {
+      this.shop.selectedFunctionIndex = this.shop.selectedFunctionIndex === funcIndex ? -1 : funcIndex;
+    }
+  }
+
+  /** 附魔按钮点击（暂仅占位，可扩展为对选中牌附魔） */
+  onEnchant() {
+    // TODO: 附魔逻辑，如对选牌区选中的牌进行附魔
   }
 
   onStartGame() {
@@ -264,6 +328,7 @@ export default class Main {
   resetBattle() {
     this.battle.drawPile = createShuffledDeck();
     this.battle.discardPile = [];
+    this.battle.discardsRemaining = 5;
     this.battle.hand = drawHandFromDeck(this.battle.drawPile);
     this.battle.monsterHp = this.battle.monsterHpMax;
     this.battle.selectedCardIndices = [];
